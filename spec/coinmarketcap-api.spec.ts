@@ -4,8 +4,8 @@ import CoinMarketCapClient, {
   type EthereumQuoteResponse,
 } from '../clients/coinmarketcap';
 
-const minBitcoinPrice = 76469;
-const maxBitcoinPrice = 96469;
+const minBitcoinPrice = 76409;
+const maxBitcoinPrice = 96409;
 
 test(`Bitcoin price is between $${minBitcoinPrice.toLocaleString()} and $${maxBitcoinPrice.toLocaleString()}`, async () => {
   const client = new CoinMarketCapClient();
