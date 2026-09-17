@@ -4,8 +4,8 @@ import CoinMarketCapClient, {
   type EthereumQuoteResponse,
 } from '../clients/coinmarketcap';
 
-const minBitcoinPrice = 76407;
-const maxBitcoinPrice = 96407;
+const minBitcoinPrice = 76389;
+const maxBitcoinPrice = 96389;
 
 function assertPriceIsNumber(assetName: string, price: number | undefined): asserts price is number {
   expect(typeof price).toBe('number');
