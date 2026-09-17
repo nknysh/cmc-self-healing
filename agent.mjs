@@ -247,7 +247,7 @@ for (let turn = 0; turn < 6; turn += 1) {
   } else if (provider === 'mlx') {
     messages.push({
       role: 'assistant',
-      content: assistantContent.content ?? '',
+      content: assistantContent.content ?? assistantContent.reasoning ?? '',
       ...(assistantContent.tool_calls ? { tool_calls: assistantContent.tool_calls } : {}),
     });
   }
@@ -255,8 +255,8 @@ for (let turn = 0; turn < 6; turn += 1) {
   if (toolUses.length === 0) {
     const text = provider === 'anthropic'
       ? assistantContent.filter((block) => block.type === 'text').map((block) => block.text).join('\n')
-      : assistantContent.content;
-    console.log(text);
+      : (assistantContent.content ?? assistantContent.reasoning ?? '');
+    console.log(text || 'The model responded without text content.');
     break;
   }
 
