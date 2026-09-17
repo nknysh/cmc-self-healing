@@ -1,0 +1,21 @@
+{
+  "name": "google-search-playwright-test",
+  "private": true,
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:coinmarketcap": "playwright test --project=coinmarketcap-api",
+    "agent": "node agent.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@types/node": "^26.5.1"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
+    "dotenv": "^17.4.2"
+  }
+}
