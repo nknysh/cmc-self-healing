@@ -11,6 +11,7 @@
     "agent": "node agent.mjs"
   },
   "devDependencies": {
+    "@playwright/mcp": "^0.0.81",
     "@playwright/test": "^1.55.0",
     "@types/node": "^26.5.1"
   },

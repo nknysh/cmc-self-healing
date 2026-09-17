@@ -13,7 +13,19 @@ const model = provider === 'mlx'
   ? (process.env.MLX_MODEL ?? 'mlx-community/Qwen3-8B-4bit')
   : (process.env.ANTHROPIC_MODEL ?? 'claude-3-5-haiku-latest');
 const mlxBaseUrl = process.env.MLX_BASE_URL ?? 'http://127.0.0.1:8080/v1';
-const bitcoinPriceRangeWidth = 20000;
+const systemPrompt = 'You are a patient programming tutor. The only file you may modify is spec/coinmarketcap-api.spec.ts, and only when healing a failed Bitcoin or Ethereum price range. Use tools when inspecting files or verifying tests would improve your answer. Explain your reasoning clearly and never claim a tool was used unless its result is provided.';
+const ansiEscapePattern = /\u001b\[[0-?]*[ -/]*[@-~]/g;
+const priceFailurePattern = /Expected:\s*(?:>=|<=|>|<)\s*[\d,.]+[\s\S]*?Received:\s*([\d.]+)/;
+const healablePriceRanges = [
+  { label: 'Bitcoin', minName: 'minBitcoinPrice', maxName: 'maxBitcoinPrice', width: 20000 },
+  { label: 'Ethereum', minName: 'minEthereumPrice', maxName: 'maxEthereumPrice', width: 600 },
+];
+
+for (const range of healablePriceRanges) {
+  range.failurePattern = new RegExp(
+    `(?:^|\\n)\\s*\\d+\\)\\s+\\[coinmarketcap-api\\][\\s\\S]*?${range.label} price[\\s\\S]*?(?=\\n\\s*\\d+\\)\\s+\\[coinmarketcap-api\\]|\\n\\s*\\d+ failed|$)`,
+  );
+}
 
 const tools = [
   {
@@ -41,7 +53,7 @@ const tools = [
   },
   {
     name: 'run_coinmarketcap_test',
-    description: 'Run only the CoinMarketCap API test. If its Bitcoin price range assertion fails, update only spec/coinmarketcap-api.spec.ts using the observed API price and rerun the test.',
+    description: 'Run only the CoinMarketCap API test. If a Bitcoin or Ethereum price range assertion fails, update only its min and max bounds in spec/coinmarketcap-api.spec.ts using the observed API price while preserving that range width, then rerun the test.',
     input_schema: {
       type: 'object',
       properties: {},
@@ -101,55 +113,73 @@ async function executeCoinMarketCapTest() {
   });
 }
 
+function getCommandOutput(error) {
+  return [error.stdout, error.stderr].filter(Boolean).join('\n');
+}
+
+function findFailedPriceRange(output) {
+  const normalizedOutput = output.replace(ansiEscapePattern, '');
+
+  for (const range of healablePriceRanges) {
+    const failure = normalizedOutput.match(range.failurePattern)?.[0];
+    const priceMatch = failure?.match(priceFailurePattern);
+
+    if (
+      failure
+      && (failure.includes('toBeGreaterThanOrEqual') || failure.includes('toBeLessThanOrEqual'))
+      && priceMatch
+    ) {
+      return {
+        ...range,
+        failure,
+        observedPrice: Number(priceMatch[1]),
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function healPriceRange(source, range) {
+  const isMinimumFailure = range.failure.includes('toBeGreaterThanOrEqual');
+  const healedMin = isMinimumFailure
+    ? Math.floor(range.observedPrice) - 1
+    : Math.ceil(range.observedPrice) + 1 - range.width;
+  const healedMax = healedMin + range.width;
+  const updatedSource = source
+    .replace(new RegExp(`const ${range.minName} = \\d+(?:\\.\\d+)?;`), `const ${range.minName} = ${healedMin};`)
+    .replace(new RegExp(`const ${range.maxName} = \\d+(?:\\.\\d+)?;`), `const ${range.maxName} = ${healedMax};`);
+
+  return { healedMin, healedMax, updatedSource };
+}
+
 async function runCoinMarketCapTest() {
-  try {
-    const result = await executeCoinMarketCapTest();
-    return result.stdout || 'CoinMarketCap test passed with no output.';
-  } catch (error) {
-    const output = [error.stdout, error.stderr].filter(Boolean).join('\n');
-    const priceMatch = output.match(/Expected:\s*(?:>=|<=|>|<)\s*[\d,.]+[\s\S]*?Received:\s*([\d.]+)/);
-    const isBitcoinThresholdFailure = output.includes('[coinmarketcap-api]')
-      && (output.includes('toBeGreaterThanOrEqual') || output.includes('toBeLessThanOrEqual'))
-      && priceMatch;
+  const healingMessages = [];
 
-    if (!isBitcoinThresholdFailure) {
-      return output || error.message;
-    }
-
-    const observedPrice = Number(priceMatch[1]);
-    if (!Number.isFinite(observedPrice) || observedPrice <= 1) {
-      return output || error.message;
-    }
-
-    const source = await readWorkspaceFile(coinMarketCapSpecPath);
-    const isMinimumFailure = output.includes('toBeGreaterThanOrEqual');
-    const healedMin = isMinimumFailure
-      ? Math.floor(observedPrice) - 1
-      : Math.ceil(observedPrice) + 1 - bitcoinPriceRangeWidth;
-    const healedMax = healedMin + bitcoinPriceRangeWidth;
-    const updatedSource = source
-      .replace(/const minBitcoinPrice = \d+(?:\.\d+)?;/, `const minBitcoinPrice = ${healedMin};`)
-      .replace(/const maxBitcoinPrice = \d+(?:\.\d+)?;/, `const maxBitcoinPrice = ${healedMax};`);
-
-    if (updatedSource === source) {
-      return output || error.message;
-    }
-
-    await writeWorkspaceFile(coinMarketCapSpecPath, updatedSource);
-
+  for (let attempt = 0; attempt <= healablePriceRanges.length; attempt += 1) {
     try {
-      const rerun = await executeCoinMarketCapTest();
+      const result = await executeCoinMarketCapTest();
       return [
-        `CoinMarketCap test healed to ${healedMin}-${healedMax} (range width ${bitcoinPriceRangeWidth}).`,
-        'Verification rerun passed.',
-        rerun.stdout,
-      ].filter(Boolean).join('\n');
-    } catch (rerunError) {
-      return [
-        `Updated the range to ${healedMin}-${healedMax}, but the rerun still failed.`,
-        rerunError.stdout,
-        rerunError.stderr,
-      ].filter(Boolean).join('\n');
+        ...healingMessages,
+        healingMessages.length > 0 ? 'Verification rerun passed.' : result.stdout,
+      ].filter(Boolean).join('\n') || 'CoinMarketCap test passed with no output.';
+    } catch (error) {
+      const output = getCommandOutput(error);
+      const failedRange = findFailedPriceRange(output);
+
+      if (!failedRange || !Number.isFinite(failedRange.observedPrice) || failedRange.observedPrice <= 1) {
+        return [...healingMessages, output || error.message].filter(Boolean).join('\n');
+      }
+
+      const source = await readWorkspaceFile(coinMarketCapSpecPath);
+      const { healedMin, healedMax, updatedSource } = healPriceRange(source, failedRange);
+
+      if (updatedSource === source) {
+        return [...healingMessages, output || error.message].filter(Boolean).join('\n');
+      }
+
+      await writeWorkspaceFile(coinMarketCapSpecPath, updatedSource);
+      healingMessages.push(`${failedRange.label} range healed to ${healedMin}-${healedMax} (range width ${failedRange.width}).`);
     }
   }
 }
@@ -195,7 +225,7 @@ const client = provider === 'anthropic' ? new Anthropic() : null;
 const messages = [
   {
     role: 'system',
-    content: 'You are a patient programming tutor. The only file you may modify is spec/coinmarketcap-api.spec.ts, and only when healing its Bitcoin price range. Use tools when inspecting files or verifying tests would improve your answer. Explain your reasoning clearly and never claim a tool was used unless its result is provided.',
+    content: systemPrompt,
   },
   { role: 'user', content: question },
 ];
@@ -205,7 +235,7 @@ async function requestModel() {
     return client.messages.create({
       model,
       max_tokens: 1200,
-      system: 'You are a patient programming tutor. Help the user understand this Playwright project. The only file you may modify is spec/coinmarketcap-api.spec.ts, and only when healing its Bitcoin price range. Use tools when inspecting files or verifying tests would improve your answer. Explain your reasoning clearly and never claim a tool was used unless its result is provided.',
+      system: systemPrompt,
       tools,
       messages,
     });

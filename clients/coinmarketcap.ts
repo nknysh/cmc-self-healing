@@ -40,6 +40,18 @@ export type BitcoinQuoteResponse = {
   };
 };
 
+export type EthereumQuoteResponse = {
+  data?: {
+    ETH?: Array<{
+      quote?: {
+        USD?: {
+          price?: number;
+        };
+      };
+    }>;
+  };
+};
+
 export class CoinMarketCapClient {
   private readonly apiKey: string;
   private readonly baseUrl: string;
