@@ -14,27 +14,29 @@ function assertPriceIsNumber(assetName: string, price: number | undefined): asse
   }
 }
 
-test(`Bitcoin price is between $${minBitcoinPrice.toLocaleString()} and $${maxBitcoinPrice.toLocaleString()}`, async () => {
-  const client = new CoinMarketCapClient();
-  const response = await client.getLatestQuotes('BTC') as BitcoinQuoteResponse;
-  const bitcoinPrice = response.data?.BTC?.[0]?.quote?.USD?.price;
+test.describe('CoinMarketCap cryptocurrency prices', () => {
+  test(`Bitcoin price is between $${minBitcoinPrice.toLocaleString()} and $${maxBitcoinPrice.toLocaleString()}`, async () => {
+    const client = new CoinMarketCapClient();
+    const response = await client.getLatestQuotes('BTC') as BitcoinQuoteResponse;
+    const bitcoinPrice = response.data?.BTC?.[0]?.quote?.USD?.price;
 
-  assertPriceIsNumber('Bitcoin', bitcoinPrice);
+    assertPriceIsNumber('Bitcoin', bitcoinPrice);
 
-  expect(bitcoinPrice).toBeGreaterThanOrEqual(minBitcoinPrice);
-  expect(bitcoinPrice).toBeLessThanOrEqual(maxBitcoinPrice);
-});
+    expect(bitcoinPrice).toBeGreaterThanOrEqual(minBitcoinPrice);
+    expect(bitcoinPrice).toBeLessThanOrEqual(maxBitcoinPrice);
+  });
 
-const minEthereumPrice = 2440;
-const maxEthereumPrice = 3040;
+  const minEthereumPrice = 2440;
+  const maxEthereumPrice = 3040;
 
-test(`Ethereum price is between $${minEthereumPrice.toLocaleString()} and $${maxEthereumPrice.toLocaleString()}`, async () => {
-  const client = new CoinMarketCapClient();
-  const response = await client.getLatestQuotes('ETH') as EthereumQuoteResponse;
-  const ethereumPrice = response.data?.ETH?.[0]?.quote?.USD?.price;
+  test(`Ethereum price is between $${minEthereumPrice.toLocaleString()} and $${maxEthereumPrice.toLocaleString()}`, async () => {
+    const client = new CoinMarketCapClient();
+    const response = await client.getLatestQuotes('ETH') as EthereumQuoteResponse;
+    const ethereumPrice = response.data?.ETH?.[0]?.quote?.USD?.price;
 
-  assertPriceIsNumber('Ethereum', ethereumPrice);
+    assertPriceIsNumber('Ethereum', ethereumPrice);
 
-  expect(ethereumPrice).toBeGreaterThanOrEqual(minEthereumPrice);
-  expect(ethereumPrice).toBeLessThanOrEqual(maxEthereumPrice);
+    expect(ethereumPrice).toBeGreaterThanOrEqual(minEthereumPrice);
+    expect(ethereumPrice).toBeLessThanOrEqual(maxEthereumPrice);
+  });
 });
