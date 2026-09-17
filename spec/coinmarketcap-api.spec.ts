@@ -7,15 +7,19 @@ import CoinMarketCapClient, {
 const minBitcoinPrice = 76409;
 const maxBitcoinPrice = 96409;
 
+function assertPriceIsNumber(assetName: string, price: number | undefined): asserts price is number {
+  expect(typeof price).toBe('number');
+  if (typeof price !== 'number') {
+    throw new Error(`CoinMarketCap did not return a USD price for ${assetName}.`);
+  }
+}
+
 test(`Bitcoin price is between $${minBitcoinPrice.toLocaleString()} and $${maxBitcoinPrice.toLocaleString()}`, async () => {
   const client = new CoinMarketCapClient();
   const response = await client.getLatestQuotes('BTC') as BitcoinQuoteResponse;
   const bitcoinPrice = response.data?.BTC?.[0]?.quote?.USD?.price;
 
-  expect(typeof bitcoinPrice).toBe('number');
-  if (typeof bitcoinPrice !== 'number') {
-    throw new Error('CoinMarketCap did not return a USD price for Bitcoin.');
-  }
+  assertPriceIsNumber('Bitcoin', bitcoinPrice);
 
   expect(bitcoinPrice).toBeGreaterThanOrEqual(minBitcoinPrice);
   expect(bitcoinPrice).toBeLessThanOrEqual(maxBitcoinPrice);
@@ -29,10 +33,7 @@ test(`Ethereum price is between $${minEthereumPrice.toLocaleString()} and $${max
   const response = await client.getLatestQuotes('ETH') as EthereumQuoteResponse;
   const ethereumPrice = response.data?.ETH?.[0]?.quote?.USD?.price;
 
-  expect(typeof ethereumPrice).toBe('number');
-  if (typeof ethereumPrice !== 'number') {
-    throw new Error('CoinMarketCap did not return a USD price for Ethereum.');
-  }
+  assertPriceIsNumber('Ethereum', ethereumPrice);
 
   expect(ethereumPrice).toBeGreaterThanOrEqual(minEthereumPrice);
   expect(ethereumPrice).toBeLessThanOrEqual(maxEthereumPrice);
