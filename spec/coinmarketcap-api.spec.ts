@@ -26,8 +26,8 @@ test.describe('CoinMarketCap cryptocurrency prices', () => {
     expect(bitcoinPrice).toBeLessThanOrEqual(maxBitcoinPrice);
   });
 
-  const minEthereumPrice = 2373;
-  const maxEthereumPrice = 2973;
+  const minEthereumPrice = 2362;
+  const maxEthereumPrice = 2962;
 
   test(`Ethereum price is between $${minEthereumPrice.toLocaleString()} and $${maxEthereumPrice.toLocaleString()}`, async () => {
     const client = new CoinMarketCapClient();
